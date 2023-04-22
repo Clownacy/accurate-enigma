@@ -5,6 +5,7 @@
 
 #define ACCURATE_ENIGMA_DECOMPRESS_MAXIMUM_RENDER_FLAGS_BITS 5
 #define ACCURATE_ENIGMA_DECOMPRESS_MAXIMUM_RENDER_FLAGS_VALUES (1u << ACCURATE_ENIGMA_DECOMPRESS_MAXIMUM_RENDER_FLAGS_BITS)
+#define ACCURATE_ENIGMA_DECOMPRESS_REPEAT_BITS 4
 
 typedef struct AccurateEngima_Decompress_State
 {
@@ -144,7 +145,7 @@ int AccurateEngima_Decompress(unsigned int (* const read_byte)(void *user_data),
 				format += AccurateEngima_Decompress_ReadBit(&state) << 0;
 			}
 
-			repeat_count = AccurateEngima_Decompress_ReadBits(&state, 4);
+			repeat_count = AccurateEngima_Decompress_ReadBits(&state, ACCURATE_ENIGMA_DECOMPRESS_REPEAT_BITS);
 
 			switch (format)
 			{
@@ -183,7 +184,7 @@ int AccurateEngima_Decompress(unsigned int (* const read_byte)(void *user_data),
 				}
 
 				case 5:
-					if (repeat_count == (1u << 4) - 1)
+					if (repeat_count == (1u << ACCURATE_ENIGMA_DECOMPRESS_REPEAT_BITS) - 1)
 						return 1; /* Success. */
 
 					do
@@ -196,4 +197,3 @@ int AccurateEngima_Decompress(unsigned int (* const read_byte)(void *user_data),
 		}
 	}
 }
-

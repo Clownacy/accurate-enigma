@@ -12,3 +12,14 @@ add_executable(decompress
 )
 
 target_link_libraries(decompress PRIVATE decompressor)
+
+add_library(compressor STATIC
+	"compressor.c"
+	"compressor.h"
+)
+
+add_executable(compress
+	"compress.c"
+)
+
+target_link_libraries(compress PRIVATE compressor)
