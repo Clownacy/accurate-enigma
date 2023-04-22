@@ -20,7 +20,7 @@ int main(const int argc, char** const argv)
 	else
 	{
 		const char* const input_file_path = argv[1];
-		FILE* const input_file = fopen(input_file_path, "rb");
+		FILE *input_file = fopen(input_file_path, "rb");
 
 		if (input_file == NULL)
 		{
@@ -57,8 +57,11 @@ int main(const int argc, char** const argv)
 					}
 					else
 					{
+						fclose(input_file);
+						input_file = NULL;
+
 						if (!AccurateEngima_Compress(input_file_buffer, input_file_size, WriteByte, output_file))
-							fprintf(stderr, "Error: file '%s' is not a valid Enigma archive.\n", input_file_path);			
+							fprintf(stderr, "Error: file '%s' could not be compressed.\n", input_file_path);
 						else
 							exit_code = EXIT_SUCCESS;
 					}
@@ -69,7 +72,8 @@ int main(const int argc, char** const argv)
 				fclose(output_file);
 			}
 
-			fclose(input_file);
+			if (input_file != NULL)
+				fclose(input_file);
 		}
 	}
 
