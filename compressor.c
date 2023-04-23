@@ -159,23 +159,23 @@ int AccurateEngima_Compress(const unsigned char* const input_buffer, const size_
 
 			AccurateEngima_Compress_WriteBit(&state, 1);
 
-			if (match_length_same > match_length_increment && match_length_same > match_length_decrement)
-			{
-				AccurateEngima_Compress_WriteBit(&state, 0);
-				AccurateEngima_Compress_WriteBit(&state, 0);
-				match_length = match_length_same;
-			}
-			else if (match_length_increment > match_length_same && match_length_increment > match_length_decrement)
+			if (match_length_increment > match_length_same && match_length_increment > match_length_decrement)
 			{
 				AccurateEngima_Compress_WriteBit(&state, 0);
 				AccurateEngima_Compress_WriteBit(&state, 1);
 				match_length = match_length_increment;
 			}
-			else /*if (match_length_decrement > match_length_increment && match_length_decrement > match_length_same)*/
+			else if (match_length_decrement > match_length_increment && match_length_decrement > match_length_same)
 			{
 				AccurateEngima_Compress_WriteBit(&state, 1);
 				AccurateEngima_Compress_WriteBit(&state, 0);
 				match_length = match_length_decrement;
+			}
+			else /*if (match_length_same > match_length_increment && match_length_same > match_length_decrement)*/
+			{
+				AccurateEngima_Compress_WriteBit(&state, 0);
+				AccurateEngima_Compress_WriteBit(&state, 0);
+				match_length = match_length_same;
 			}
 
 			AccurateEngima_Compress_WriteBits(&state, match_length - 1, ACCURATE_ENIGMA_COMPRESS_REPEAT_BITS);
