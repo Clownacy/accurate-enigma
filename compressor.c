@@ -6,6 +6,7 @@
 #define ACCURATE_ENIGMA_COMPRESS_MAXIMUM_RENDER_FLAGS_BITS 5
 #define ACCURATE_ENIGMA_COMPRESS_MAXIMUM_RENDER_FLAGS_VALUES (1u << ACCURATE_ENIGMA_DECOMPRESS_MAXIMUM_RENDER_FLAGS_BITS)
 #define ACCURATE_ENIGMA_COMPRESS_REPEAT_BITS 4
+#define ACCURATE_ENIGMA_COMPRESS_REPEAT_MAXIMUM_VALUE (1u << 4)
 
 #define ACCURATE_ENIGMA_COMPRESS_MIN(A, B) ((A) < (B) ? (A) : (B))
 
@@ -110,6 +111,48 @@ static void AccurateEngima_Compress_WriteBits(AccurateEngima_Compress_State* con
 		AccurateEngima_Compress_WriteBit(state, (bits & 1u << (total_bits - 1 - i)) != 0);
 }
 
+static void AccurateEnigma_Compress_GetLongestRun(size_t* const match_length, int* const delta, const unsigned char* const input_buffer, const size_t total_words, const size_t index)
+{
+	size_t match_length_same, match_length_increment, match_length_decrement;
+
+	const unsigned int word = AccurateEngima_Compress_ReadWord(input_buffer, index);
+	const unsigned int maximum_words_to_compare = ACCURATE_ENIGMA_COMPRESS_MIN(1u << ACCURATE_ENIGMA_COMPRESS_REPEAT_BITS, total_words - index);
+
+	for (match_length_same = 1; match_length_same < maximum_words_to_compare; ++match_length_same)
+		if (word != AccurateEngima_Compress_ReadWord(input_buffer, index + match_length_same))
+			break;
+
+	for (match_length_increment = 1; match_length_increment < maximum_words_to_compare; ++match_length_increment)
+		if (word + match_length_increment != AccurateEngima_Compress_ReadWord(input_buffer, index + match_length_increment))
+			break;
+
+	for (match_length_decrement = 1; match_length_decrement < maximum_words_to_compare; ++match_length_decrement)
+		if (word - match_length_decrement != AccurateEngima_Compress_ReadWord(input_buffer, index + match_length_decrement))
+			break;
+
+	if (match_length_increment > match_length_same && match_length_increment > match_length_decrement)
+	{
+		*match_length = match_length_increment;
+
+		if (delta != NULL)
+			*delta = 1;
+	}
+	else if (match_length_decrement > match_length_increment && match_length_decrement > match_length_same)
+	{
+		*match_length = match_length_decrement;
+
+		if (delta != NULL)
+			*delta = -1;
+	}
+	else /*if (match_length_same > match_length_increment && match_length_same > match_length_decrement)*/
+	{
+		*match_length = match_length_same;
+
+		if (delta != NULL)
+			*delta = 0;
+	}
+}
+
 int AccurateEngima_Compress(const unsigned char* const input_buffer, const size_t input_size, void (*write_byte)(unsigned int byte, void *user_data), const void *write_byte_user_data)
 {
 	if (input_size % 2 != 0)
@@ -139,49 +182,61 @@ int AccurateEngima_Compress(const unsigned char* const input_buffer, const size_
 
 		for (current_index = 0; current_index != total_words; current_index += match_length)
 		{
-			size_t match_length_same, match_length_increment, match_length_decrement;
-			unsigned int j;
+			size_t sub_match_length;
 
-			const unsigned int word = AccurateEngima_Compress_ReadWord(input_buffer, current_index);
-			const unsigned int maximum_words_to_compare = ACCURATE_ENIGMA_COMPRESS_MIN(1u << ACCURATE_ENIGMA_COMPRESS_REPEAT_BITS, total_words - current_index);
-
-			for (match_length_same = 1; match_length_same < maximum_words_to_compare; ++match_length_same)
-				if (word != AccurateEngima_Compress_ReadWord(input_buffer, current_index + match_length_same))
-					break;
-
-			for (match_length_increment = 1; match_length_increment < maximum_words_to_compare; ++match_length_increment)
-				if (word + match_length_increment != AccurateEngima_Compress_ReadWord(input_buffer, current_index + match_length_increment))
-					break;
-
-			for (match_length_decrement = 1; match_length_decrement < maximum_words_to_compare; ++match_length_decrement)
-				if (word - match_length_decrement != AccurateEngima_Compress_ReadWord(input_buffer, current_index + match_length_decrement))
-					break;
-
-			AccurateEngima_Compress_WriteBit(&state, 1);
-
-			if (match_length_increment > match_length_same && match_length_increment > match_length_decrement)
+			/* Try to create a run of multiple smaller runs. */
+			for (match_length = 0; match_length < ACCURATE_ENIGMA_COMPRESS_MIN(ACCURATE_ENIGMA_COMPRESS_REPEAT_MAXIMUM_VALUE, total_words - (current_index + match_length)); match_length += sub_match_length)
 			{
-				AccurateEngima_Compress_WriteBit(&state, 0);
+				AccurateEnigma_Compress_GetLongestRun(&sub_match_length, NULL, input_buffer, total_words, current_index + match_length);
+
+				if (sub_match_length >= 3)
+					break;
+
+				if (match_length + sub_match_length >= ACCURATE_ENIGMA_COMPRESS_REPEAT_MAXIMUM_VALUE)
+					break;
+			}
+
+			if (match_length < 3)
+			{
+				/* We couldn't find that many smaller runs, so just encode the first run on its own. */
+				int delta;
+
+				AccurateEnigma_Compress_GetLongestRun(&match_length, &delta, input_buffer, total_words, current_index);
 				AccurateEngima_Compress_WriteBit(&state, 1);
-				match_length = match_length_increment;
+
+				if (delta == 1)
+				{
+					AccurateEngima_Compress_WriteBit(&state, 0);
+					AccurateEngima_Compress_WriteBit(&state, 1);
+				}
+				else if (delta == -1)
+				{
+					AccurateEngima_Compress_WriteBit(&state, 1);
+					AccurateEngima_Compress_WriteBit(&state, 0);
+				}
+				else /*if (delta == 0)*/
+				{
+					AccurateEngima_Compress_WriteBit(&state, 0);
+					AccurateEngima_Compress_WriteBit(&state, 0);
+				}
+
+				AccurateEngima_Compress_WriteBits(&state, match_length - 1, ACCURATE_ENIGMA_COMPRESS_REPEAT_BITS);
+				AccurateEngima_Compress_WriteBits(&state, AccurateEngima_Compress_ReadWord(input_buffer, current_index), 16);
 			}
-			else if (match_length_decrement > match_length_increment && match_length_decrement > match_length_same)
+			else
 			{
+				/* We found a lot of smaller runs, so let's encode them together. */
+				unsigned int i;
+
 				AccurateEngima_Compress_WriteBit(&state, 1);
-				AccurateEngima_Compress_WriteBit(&state, 0);
-				match_length = match_length_decrement;
-			}
-			else /*if (match_length_same > match_length_increment && match_length_same > match_length_decrement)*/
-			{
-				AccurateEngima_Compress_WriteBit(&state, 0);
-				AccurateEngima_Compress_WriteBit(&state, 0);
-				match_length = match_length_same;
-			}
+				AccurateEngima_Compress_WriteBit(&state, 1);
+				AccurateEngima_Compress_WriteBit(&state, 1);
 
-			AccurateEngima_Compress_WriteBits(&state, match_length - 1, ACCURATE_ENIGMA_COMPRESS_REPEAT_BITS);
+				AccurateEngima_Compress_WriteBits(&state, match_length - 1, ACCURATE_ENIGMA_COMPRESS_REPEAT_BITS);
 
-			for (j = 0; j < 16; ++j)
-				AccurateEngima_Compress_WriteBit(&state, (word & ((1u << 15) >> j)) != 0);
+				for (i = 0; i < match_length; ++i)
+					AccurateEngima_Compress_WriteBits(&state, AccurateEngima_Compress_ReadWord(input_buffer, current_index + i), 16);
+			}
 		}
 
 		/* Termination match. */
