@@ -7,8 +7,18 @@ add_library(decompressor STATIC
 	"decompressor.h"
 )
 
+set_target_properties(decompressor PROPERTIES
+	C_STANDARD 90
+	C_EXTENSIONS OFF
+)
+
 add_executable(decompress
 	"decompress.c"
+)
+
+set_target_properties(decompress PROPERTIES
+	C_STANDARD 90
+	C_EXTENSIONS OFF
 )
 
 target_link_libraries(decompress PRIVATE decompressor)
@@ -18,8 +28,18 @@ add_library(compressor STATIC
 	"compressor.h"
 )
 
+set_target_properties(compressor PROPERTIES
+	C_STANDARD 90
+	C_EXTENSIONS OFF
+)
+
 add_executable(compress
 	"compress.c"
+)
+
+set_target_properties(compress PROPERTIES
+	C_STANDARD 90
+	C_EXTENSIONS OFF
 )
 
 target_link_libraries(compress PRIVATE compressor)
